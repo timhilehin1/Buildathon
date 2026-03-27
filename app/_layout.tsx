@@ -1,24 +1,81 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import React, { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuthStore } from '@/src/store/auth-store';
+import { initDB } from '@/src/db/local-db';
+import { OfflineBanner } from '@/src/components/OfflineBanner';
+import { Colors } from '@/src/constants/theme';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 1000 * 60 * 5,
+    },
+  },
+});
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { session, isLoading, hasProfile, loadSession } = useAuthStore();
+  const segments = useSegments();
+  const router = useRouter();
 
+  useEffect(() => {
+    initDB().catch(console.error);
+    loadSession();
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!session) {
+      if (!inAuthGroup) router.replace('/(auth)/login');
+    } else if (!hasProfile) {
+      if (segments[1] !== 'onboarding') router.replace('/(auth)/onboarding');
+    } else {
+      if (inAuthGroup) router.replace('/(tabs)');
+    }
+  }, [session, isLoading, hasProfile, segments]);
+
+  return <>{children}</>;
+}
+
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <QueryClientProvider client={queryClient}>
+        <AuthGuard>
+          <View style={styles.root}>
+            <OfflineBanner />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="transaction/new" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="transaction/[id]" />
+              <Stack.Screen name="budget/new" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="budget/[month]" />
+              <Stack.Screen name="rewards/redeem" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+          </View>
+        </AuthGuard>
+        <StatusBar style="dark" />
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.background },
+});
