@@ -1,23 +1,21 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
-  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 
-import { useAuthStore } from '@/src/store/auth-store';
 import { profileApi } from '@/src/api/profile';
 import { Button } from '@/src/components/Button';
 import { Input } from '@/src/components/Input';
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '@/src/constants/theme';
+import { useAuthStore } from '@/src/store/auth-store';
 
 const TOTAL_STEPS = 4;
 
@@ -74,7 +72,8 @@ export default function OnboardingScreen() {
   async function handleStep4(data: Step4Data) {
     setLoading(true);
     try {
-      await profileApi.create({
+   
+     const res = await profileApi.create({
         first_name: profileData.first_name ?? '',
         last_name: profileData.last_name ?? '',
         username: profileData.username ?? '',
@@ -84,6 +83,9 @@ export default function OnboardingScreen() {
         leaderboard_opt_in: false,
         notification_preferences: { push: true, email: false },
       });
+      
+
+      console.log(res)
 
       if (data.bank_name && data.account_number && data.bank_code) {
         await profileApi.setPayoutAccount({
@@ -94,8 +96,10 @@ export default function OnboardingScreen() {
       }
 
       await setHasProfile(true);
-    } catch {
-      await setHasProfile(true);
+    } catch (err: any) {
+      console.log(err);
+
+     
     } finally {
       setLoading(false);
     }

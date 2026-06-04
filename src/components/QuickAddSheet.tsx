@@ -1,19 +1,20 @@
+import { Colors, FontSize, FontWeight, Radius, Spacing } from '@/src/constants/theme';
+import TextRecognition from '@react-native-ml-kit/text-recognition';
+import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-  Platform,
+  ActivityIndicator,
   Alert,
+  Animated,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Colors, FontSize, Radius, Spacing, FontWeight } from '@/src/constants/theme';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = 280;
 
 interface QuickAddSheetProps {
@@ -21,9 +22,21 @@ interface QuickAddSheetProps {
   onClose: () => void;
 }
 
+function parseOCRText(text: string): { amount?: string; merchant?: string } {
+  const amountMatch = text.match(/(?:₦|NGN|N)\s?([\d,]+(?:\.\d{1,2})?)/i)
+    ?? text.match(/\b([\d,]{3,}(?:\.\d{1,2})?)\b/);
+  const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : undefined;
+
+  const merchantMatch = text.match(/(?:at|to|from|merchant[:\s]+)([A-Z][A-Z0-9\s&]{2,30})/i);
+  const merchant = merchantMatch ? merchantMatch[1].trim() : undefined;
+
+  return { amount, merchant };
+}
+
 export function QuickAddSheet({ visible, onClose }: QuickAddSheetProps) {
   const router = useRouter();
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const [scanning, setScanning] = React.useState(false);
 
   useEffect(() => {
     Animated.spring(translateY, {
@@ -44,19 +57,38 @@ export function QuickAddSheet({ visible, onClose }: QuickAddSheetProps) {
       Alert.alert('Android Only', 'SMS capture is only available on Android devices.');
       return;
     }
-    Alert.alert(
-      'Dev Build Required',
-      'SMS capture requires a dev build. Run `expo run:android` to enable this feature.',
-    );
+    Alert.alert('Coming Soon', 'SMS capture will be available in the next update.');
     onClose();
   }
 
-  function handleScreenshot() {
-    Alert.alert(
-      'Dev Build Required',
-      'Screenshot OCR requires a dev build with ML Kit. Run `expo run:android` or `expo run:ios` to enable.',
-    );
+  async function handleScreenshot() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow access to your photo library to scan screenshots.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+
+    if (result.canceled) return;
+
     onClose();
+    setScanning(true);
+    try {
+      const recognized = await TextRecognition.recognize(result.assets[0].uri);
+      const { amount, merchant } = parseOCRText(recognized.text);
+      router.push({
+        pathname: '/transaction/new',
+        params: { amount, merchant_raw: merchant, trigger_type: 'OCR' },
+      });
+    } catch {
+      Alert.alert('OCR Failed', 'Could not read text from the image. Try a clearer screenshot.');
+    } finally {
+      setScanning(false);
+    }
   }
 
   if (!visible) return null;
@@ -84,11 +116,13 @@ export function QuickAddSheet({ visible, onClose }: QuickAddSheetProps) {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.option} onPress={handleScreenshot} activeOpacity={0.7}>
-          <View style={styles.optionIcon}><Text style={styles.emoji}>📷</Text></View>
+        <TouchableOpacity style={styles.option} onPress={handleScreenshot} activeOpacity={0.7} disabled={scanning}>
+          <View style={styles.optionIcon}>
+            {scanning ? <ActivityIndicator size="small" color={Colors.primary} /> : <Text style={styles.emoji}>📷</Text>}
+          </View>
           <View>
             <Text style={styles.optionLabel}>Screenshot OCR</Text>
-            <Text style={styles.optionSub}>Extract from payment screenshot</Text>
+            <Text style={styles.optionSub}>{scanning ? 'Scanning...' : 'Extract from payment screenshot'}</Text>
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -98,18 +132,11 @@ export function QuickAddSheet({ visible, onClose }: QuickAddSheetProps) {
 
 const styles = StyleSheet.create({
   backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
     height: SHEET_HEIGHT,
     backgroundColor: Colors.background,
     borderTopLeftRadius: Radius.lg,
@@ -123,35 +150,22 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   handle: {
-    width: 36,
-    height: 4,
-    borderRadius: Radius.full,
+    width: 36, height: 4, borderRadius: Radius.full,
     backgroundColor: Colors.border,
     alignSelf: 'center',
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.sm, marginBottom: Spacing.md,
   },
-  title: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.text,
-    marginBottom: Spacing.md,
-  },
+  title: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: Spacing.md },
   option: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
     gap: Spacing.md,
   },
   optionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
+    width: 44, height: 44, borderRadius: Radius.md,
     backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   emoji: { fontSize: 20 },
   optionLabel: { fontSize: FontSize.md, fontWeight: FontWeight.medium, color: Colors.text },

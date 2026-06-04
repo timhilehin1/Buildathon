@@ -1,15 +1,15 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { useAuthStore } from '@/src/store/auth-store';
-import { initDB } from '@/src/db/local-db';
 import { OfflineBanner } from '@/src/components/OfflineBanner';
 import { Colors } from '@/src/constants/theme';
+import { initDB } from '@/src/db/local-db';
+import { useAuthStore } from '@/src/store/auth-store';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,13 +31,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     initDB().catch(console.error);
-    loadSession();
+
+    console.log('here', session)
+
+    if (!session) loadSession();
   }, []);
 
   useEffect(() => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+
 
     if (!session) {
       if (!inAuthGroup) router.replace('/(auth)/login');

@@ -28,7 +28,9 @@ export interface LeaderboardEntry {
 
 export const profileApi = {
   create: async (profile: Profile): Promise<Profile> => {
+
     const { data } = await apiClient.post('/v1/profile', profile);
+
     return data;
   },
 

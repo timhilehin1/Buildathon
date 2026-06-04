@@ -1,25 +1,25 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useForm, Controller } from 'react-hook-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import {
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { z } from 'zod';
 
-import { insertTransaction } from '@/src/db/local-db';
-import { flushQueue } from '@/src/services/sync-queue';
-import { useCategories } from '@/src/hooks/use-categories';
+import { Button } from '@/src/components/Button';
 import { Header } from '@/src/components/Header';
 import { Input } from '@/src/components/Input';
-import { Button } from '@/src/components/Button';
 import { Colors, FontSize, FontWeight, Spacing } from '@/src/constants/theme';
+import { insertTransaction } from '@/src/db/local-db';
+import { useCategories } from '@/src/hooks/use-categories';
+import { flushQueue } from '@/src/services/sync-queue';
 
 const BANKS = ['GTBank', 'Access Bank', 'Zenith Bank', 'UBA', 'First Bank', 'Opay', 'Kuda', 'Palmpay', 'Moniepoint', 'Other'];
 
@@ -34,10 +34,15 @@ type FormData = z.infer<typeof schema>;
 export default function NewTransactionScreen() {
   const router = useRouter();
   const { data: categories } = useCategories();
+  const params = useLocalSearchParams<{ amount?: string; merchant_raw?: string; trigger_type?: string }>();
 
   const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { bank_source: BANKS[0] },
+    defaultValues: {
+      bank_source: BANKS[0],
+      amount: params.amount ?? '',
+      merchant_raw: params.merchant_raw ?? '',
+    },
   });
 
   async function onSubmit(data: FormData) {
@@ -47,7 +52,7 @@ export default function NewTransactionScreen() {
         merchant_raw: data.merchant_raw,
         bank_source: data.bank_source,
         category_id: data.category_id ? parseInt(data.category_id) : undefined,
-        trigger_type: 'MANUAL',
+        trigger_type: (params.trigger_type as any) ?? 'MANUAL',
         status: 'PENDING',
         timestamp: new Date().toISOString(),
       });
